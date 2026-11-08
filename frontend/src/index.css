@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #fbfcf9;
+  --foreground: #234d3d;
+  --card: #ffffff;
+  --card-foreground: #234d3d;
+  --popover: #ffffff;
+  --popover-foreground: #234d3d;
+  --primary: #234d3d;
+  --primary-foreground: #ffffff;
+  --secondary: #eef6ee;
+  --secondary-foreground: #234d3d;
+  --muted: #f2f7f1;
+  --muted-foreground: #72847a;
+  --accent: #dceedd;
+  --accent-foreground: #234d3d;
+  --destructive: #b84f4f;
+  --border: #deebde;
+  --input: #deebde;
+  --ring: #7db487;
+  --radius: 1rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { @apply border-border; }
+  html { scroll-behavior: smooth; }
+  body { @apply bg-background text-foreground; font-family: 'DM Sans', sans-serif; margin: 0; }
+  button, a, input { font: inherit; }
+  button { cursor: pointer; }
+  ::selection { background: #b9dfbd; color: #234d3d; }
+}
+
+@layer components {
+  .eyebrow { @apply text-[10px] font-bold uppercase tracking-[0.18em] text-[#6f9c7a]; }
+  .section-title { @apply text-[40px] font-semibold leading-[1.04] tracking-[-0.065em] text-[#234d3d] sm:text-[54px]; font-family: 'Manrope', sans-serif; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a, button { transition-duration: 180ms; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); }
+  @keyframes success-pop { 0% { transform: scale(0.72); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+}
+
+@media (max-width: 640px) {
+  .section-title { font-size: 38px; }
+}
+
+input[type="range"] { appearance: none; background: #dce9dc; border-radius: 999px; }
+input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #5a9f68; border: 3px solid white; box-shadow: 0 1px 5px rgba(35,77,61,0.24); }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #5a9f68; border: 3px solid white; box-shadow: 0 1px 5px rgba(35,77,61,0.24); }
