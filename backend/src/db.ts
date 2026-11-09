@@ -1,104 +1,169 @@
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import { MongoClient, type Collection } from "mongodb";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+// User types
+export type User = {
+  id?: string;
+  openId: string;
+  name: string | null;
+  email: string | null;
+  loginMethod: string | null;
+  passwordHash: string | null;
+  role: "user" | "admin";
+  createdAt: Date;
+  updatedAt: Date;
+  lastSignedIn: Date;
+};
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+export type InsertUser = Partial<User> & { openId: string };
+
+let client: MongoClient | null = null;
+let usersCollection: Collection<User> | null = null;
+
+// Get MongoDB database connection
+async function getDatabase() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    console.warn("[MongoDB] MONGODB_URI not configured");
+    return null;
+  }
+  
+  if (!client) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      client = new MongoClient(uri);
+      await client.connect();
+      console.log("[MongoDB] Connected successfully");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
+      console.error("[MongoDB] Connection failed:", error);
+      return null;
     }
   }
-  return _db;
+  
+  return client.db(process.env.MONGODB_DB_NAME || "stayflow");
 }
 
+// Get users collection
+async function getUsersCollection(): Promise<Collection<User> | null> {
+  if (usersCollection) return usersCollection;
+  
+  const database = await getDatabase();
+  if (!database) return null;
+  
+  usersCollection = database.collection<User>("users");
+  
+  // Create indexes
+  try {
+    await usersCollection.createIndex({ openId: 1 }, { unique: true });
+    await usersCollection.createIndex({ email: 1 }, { sparse: true });
+  } catch (error) {
+    console.warn("[MongoDB] Index creation warning:", error);
+  }
+  
+  return usersCollection;
+}
+
+/**
+ * Upsert a user (create or update)
+ */
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
 
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+  const collection = await getUsersCollection();
+  if (!collection) {
+    console.warn("[MongoDB] Cannot upsert user: database not available");
     return;
   }
 
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
-
-    const textFields = ["name", "email", "loginMethod", "passwordHash"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
+    const now = new Date();
+    const existingUser = await collection.findOne({ openId: user.openId });
+    
+    if (existingUser) {
+      // Update existing user
+      const updateFields: Partial<User> = {
+        updatedAt: now,
+      };
+      
+      if (user.name !== undefined) updateFields.name = user.name;
+      if (user.email !== undefined) updateFields.email = user.email;
+      if (user.loginMethod !== undefined) updateFields.loginMethod = user.loginMethod;
+      if (user.passwordHash !== undefined) updateFields.passwordHash = user.passwordHash;
+      if (user.role !== undefined) updateFields.role = user.role;
+      if (user.lastSignedIn !== undefined) updateFields.lastSignedIn = user.lastSignedIn;
+      
+      await collection.updateOne(
+        { openId: user.openId },
+        { $set: updateFields }
+      );
+    } else {
+      // Create new user
+      const newUser: User = {
+        openId: user.openId,
+        name: user.name ?? null,
+        email: user.email ?? null,
+        loginMethod: user.loginMethod ?? null,
+        passwordHash: user.passwordHash ?? null,
+        role: user.role ?? "user",
+        createdAt: now,
+        updatedAt: now,
+        lastSignedIn: user.lastSignedIn ?? now,
+      };
+      
+      await collection.insertOne(newUser);
     }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    console.error("[MongoDB] Failed to upsert user:", error);
     throw error;
   }
 }
 
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+/**
+ * Get user by openId
+ */
+export async function getUserByOpenId(openId: string): Promise<User | undefined> {
+  const collection = await getUsersCollection();
+  if (!collection) {
+    console.warn("[MongoDB] Cannot get user: database not available");
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
-  return result.length > 0 ? result[0] : undefined;
+  try {
+    const user = await collection.findOne({ openId });
+    return user ?? undefined;
+  } catch (error) {
+    console.error("[MongoDB] Failed to get user by openId:", error);
+    return undefined;
+  }
 }
 
-export async function getUserByEmail(email: string) {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+/**
+ * Get user by email
+ */
+export async function getUserByEmail(email: string): Promise<User | undefined> {
+  const collection = await getUsersCollection();
+  if (!collection) {
+    console.warn("[MongoDB] Cannot get user: database not available");
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-
-  return result.length > 0 ? result[0] : undefined;
+  try {
+    const user = await collection.findOne({ email });
+    return user ?? undefined;
+  } catch (error) {
+    console.error("[MongoDB] Failed to get user by email:", error);
+    return undefined;
+  }
 }
 
-// TODO: add feature queries here as your schema grows.
+/**
+ * Close MongoDB connection (for graceful shutdown)
+ */
+export async function closeDatabase() {
+  if (client) {
+    await client.close();
+    client = null;
+    usersCollection = null;
+    console.log("[MongoDB] Connection closed");
+  }
+}
