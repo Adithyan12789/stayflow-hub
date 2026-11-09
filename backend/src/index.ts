@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./_core/oauth";
+import { registerDevAuthRoutes } from "./_core/devAuth";
 import { registerStorageProxy } from "./_core/storageProxy";
 import { appRouter } from "./routers";
 import { createContext } from "./_core/context";
@@ -74,6 +75,7 @@ async function startServer() {
 
   app.post("/api/scheduled/cleanupPendingBookings", cleanupPendingBookingsHandler);
   registerStorageProxy(app);
+  registerDevAuthRoutes(app);
   registerOAuthRoutes(app);
 
   // tRPC API

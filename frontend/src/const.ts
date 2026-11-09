@@ -2,6 +2,13 @@ import { OAUTH_STATE_COOKIE, encodeOAuthState } from "@shared/const";
 
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
+// Check if OAuth is configured
+export function isOAuthConfigured(): boolean {
+  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
+  const appId = import.meta.env.VITE_APP_ID;
+  return !!(oauthPortalUrl && appId && oauthPortalUrl.trim() && appId.trim());
+}
+
 // Start the Manus OAuth login. Call this from an event handler or effect at the
 // moment you want to navigate, e.g. `onClick={() => startLogin()}`.
 //
@@ -13,16 +20,12 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 // with "invalid oauth state". It returns void by design, so there is no URL to
 // stash across renders.
 export const startLogin = (returnPath?: string) => {
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
-  const appId = import.meta.env.VITE_APP_ID;
-  
-  // Temporary: Block OAuth login until dev auth is implemented
-  if (!oauthPortalUrl || !appId || oauthPortalUrl === 'http://localhost:5001') {
-    alert('OAuth is not configured. Local dev authentication is being implemented. Please wait for the workflow to complete.');
-    console.error('OAuth configuration missing or invalid:', { oauthPortalUrl, appId });
-    return;
+  if (!isOAuthConfigured()) {
+    throw new Error("OAuth not configured - use email/password login form");
   }
   
+  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
+  const appId = import.meta.env.VITE_APP_ID;
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
 
   const nonce = crypto.randomUUID();

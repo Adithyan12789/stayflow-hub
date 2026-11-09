@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { startLogin } from "@/const";
+import { startLogin, isOAuthConfigured } from "@/const";
+import { devLogin, devSignup } from "@/lib/devAuth";
 import {
   ArrowRight,
   BedDouble,
@@ -60,8 +61,85 @@ function WorkspaceShell({ children, eyebrow, title, subtitle, action }: { childr
 
 function Stat({ label, value, detail, icon: Icon, tone = "green" }: { label: string; value: string; detail: string; icon: typeof Home; tone?: string }) { const tones: Record<string, string> = { green: "bg-[#eaf5eb] text-[#4b9560]", orange: "bg-[#fff0e2] text-[#ba6f35]", purple: "bg-[#f0ecff] text-[#7660c3]", blue: "bg-[#eaf4ff] text-[#4d87b8]" }; return <div className="rounded-[20px] border border-[#e1ebe0] bg-white p-5 shadow-[0_10px_28px_rgba(35,77,61,0.035)]"><div className="flex items-start justify-between"><div><p className="text-[11px] font-semibold text-[#8c9c92]">{label}</p><p className="mt-2 text-[28px] font-semibold tracking-[-0.07em] text-[#234d3d]">{value}</p></div><div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon size={19} /></div></div><p className="mt-3 text-[10px] text-[#92a199]">{detail}</p></div>; }
 
-export function LoginPage() { const [showPassword, setShowPassword] = useState(false); const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/"; return <AuthShell title="Welcome back" description="Sign in to keep your stay business flowing."><form onSubmit={(event) => { event.preventDefault(); startLogin(returnTo); }} className="grid gap-5"><Field label="Email address" icon={Mail} placeholder="you@example.com" type="email" /><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Password</span><div className="relative"><input type={showPassword ? "text" : "password"} placeholder="Enter your password" className="h-12 w-full rounded-xl border border-[#dfe9df] px-4 pr-20 text-sm outline-none focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#5d8967]">{showPassword ? "Hide" : "Show"}</button></div></label><div className="flex items-center justify-between text-[11px]"><label className="flex items-center gap-2 text-[#7d9082]"><input type="checkbox" className="accent-[#5b9d69]" /> Remember me</label><button type="button" className="font-bold text-[#4b8b59]">Forgot password?</button></div><button className="rounded-xl bg-[#234d3d] py-3.5 text-sm font-bold text-white transition hover:bg-[#2f654f]">Sign in <ArrowRight className="ml-1 inline" size={15} /></button></form><Divider /><p className="text-center text-sm text-[#7d9082]">New to stayzen? <Link href={`/signup?returnTo=${encodeURIComponent(returnTo)}`}><span className="font-bold text-[#478956]">Create an account</span></Link></p></AuthShell>; }
-export function SignupPage() { const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/"; return <AuthShell title="Start hosting smarter" description="Create your workspace and take the busywork out of hosting."><form onSubmit={(event) => { event.preventDefault(); startLogin(returnTo); }} className="grid gap-4"><div className="grid gap-4 sm:grid-cols-2"><Field label="First name" icon={Users} placeholder="Ananya" /><Field label="Last name" icon={Users} placeholder="Mehta" /></div><Field label="Work email" icon={Mail} placeholder="you@example.com" type="email" /><Field label="Create password" icon={LogIn} placeholder="8+ characters" type="password" /><label className="flex items-start gap-2 text-[11px] leading-5 text-[#7d9082]"><input type="checkbox" className="mt-1 accent-[#5b9d69]" /> I agree to the stayzen terms and privacy policy.</label><button className="rounded-xl bg-[#234d3d] py-3.5 text-sm font-bold text-white transition hover:bg-[#2f654f]">Create workspace <ArrowRight className="ml-1 inline" size={15} /></button></form><Divider /><p className="text-center text-sm text-[#7d9082]">Already have an account? <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`}><span className="font-bold text-[#478956]">Sign in</span></Link></p></AuthShell>; }
+export function LoginPage() { 
+  const [showPassword, setShowPassword] = useState(false); 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [, setLocation] = useLocation();
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/"; 
+  
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    
+    if (isOAuthConfigured()) {
+      startLogin(returnTo);
+      return;
+    }
+    
+    // Dev auth flow
+    setLoading(true);
+    try {
+      const result = await devLogin(email, password);
+      if (result.success) {
+        setLocation(returnTo);
+      } else {
+        setError(result.error || "Login failed");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return <AuthShell title="Welcome back" description="Sign in to keep your stay business flowing."><form onSubmit={handleSubmit} className="grid gap-5">{error && <div className="rounded-xl bg-[#fff0e2] border border-[#ffd7b8] px-4 py-3 text-sm text-[#ba6f35]">{error}</div>}<label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Email address</span><div className="relative"><Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Password</span><div className="relative"><input type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12 w-full rounded-xl border border-[#dfe9df] px-4 pr-20 text-sm outline-none focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#5d8967]">{showPassword ? "Hide" : "Show"}</button></div></label><div className="flex items-center justify-between text-[11px]"><label className="flex items-center gap-2 text-[#7d9082]"><input type="checkbox" className="accent-[#5b9d69]" /> Remember me</label><button type="button" className="font-bold text-[#4b8b59]">Forgot password?</button></div><button disabled={loading} className="rounded-xl bg-[#234d3d] py-3.5 text-sm font-bold text-white transition hover:bg-[#2f654f] disabled:opacity-50">{loading ? "Signing in..." : "Sign in"} <ArrowRight className="ml-1 inline" size={15} /></button></form><Divider /><p className="text-center text-sm text-[#7d9082]">New to stayzen? <Link href={`/signup?returnTo=${encodeURIComponent(returnTo)}`}><span className="font-bold text-[#478956]">Create an account</span></Link></p></AuthShell>; }
+export function SignupPage() { 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [, setLocation] = useLocation();
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/"; 
+  
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    
+    if (isOAuthConfigured()) {
+      startLogin(returnTo);
+      return;
+    }
+    
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    
+    // Dev auth flow
+    setLoading(true);
+    try {
+      const name = `${firstName} ${lastName}`.trim();
+      const result = await devSignup(email, password, name);
+      if (result.success) {
+        setLocation(returnTo);
+      } else {
+        setError(result.error || "Signup failed");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return <AuthShell title="Start hosting smarter" description="Create your workspace and take the busywork out of hosting."><form onSubmit={handleSubmit} className="grid gap-4">{error && <div className="rounded-xl bg-[#fff0e2] border border-[#ffd7b8] px-4 py-3 text-sm text-[#ba6f35]">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>First name</span><div className="relative"><Users size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type="text" placeholder="Ananya" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Last name</span><div className="relative"><Users size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type="text" placeholder="Mehta" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label></div><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Work email</span><div className="relative"><Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Create password</span><div className="relative"><LogIn size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type="password" placeholder="8+ characters" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label><label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>Confirm password</span><div className="relative"><LogIn size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type="password" placeholder="Confirm password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label><label className="flex items-start gap-2 text-[11px] leading-5 text-[#7d9082]"><input type="checkbox" className="mt-1 accent-[#5b9d69]" /> I agree to the stayzen terms and privacy policy.</label><button disabled={loading} className="rounded-xl bg-[#234d3d] py-3.5 text-sm font-bold text-white transition hover:bg-[#2f654f] disabled:opacity-50">{loading ? "Creating workspace..." : "Create workspace"} <ArrowRight className="ml-1 inline" size={15} /></button></form><Divider /><p className="text-center text-sm text-[#7d9082]">Already have an account? <Link href={`/login?returnTo=${encodeURIComponent(returnTo)}`}><span className="font-bold text-[#478956]">Sign in</span></Link></p></AuthShell>; }
 
 function AuthShell({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <div className="grid min-h-screen bg-[#f5faf4] lg:grid-cols-[0.9fr_1.1fr]"><div className="relative hidden overflow-hidden bg-[#234d3d] p-12 text-white lg:flex lg:flex-col lg:justify-between"><div><Brand /><div className="mt-28 max-w-[470px]"><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#9ad5ac]">The calm operating system</p><h1 className="mt-5 text-[56px] font-semibold leading-[0.99] tracking-[-0.07em]">More time to host.<br /><span className="text-[#9ad5ac]">Less time managing.</span></h1><p className="mt-6 max-w-[390px] text-[16px] leading-7 text-[#c1d7c6]">Calendars, bookings, payments, and guest communication—beautifully simple and connected.</p></div></div><div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.07] p-5"><div className="flex items-center justify-between text-xs"><span className="font-bold text-white">This month at a glance</span><span className="text-[#a9c9b1]">Live portfolio</span></div><div className="mt-5 flex items-end gap-2">{[32, 46, 40, 58, 54, 72, 64, 84, 76, 92].map((height, index) => <div key={index} className={`flex-1 rounded-t-sm ${index > 6 ? "bg-[#9ad5ac]" : "bg-[#5a8d6b]"}`} style={{ height: `${height}px` }} />)}</div><p className="mt-3 text-[10px] text-[#a9c9b1]">Revenue is up 18.4% from last month</p></div></div><div className="flex flex-col justify-center px-5 py-10 sm:px-10 lg:px-20"><div className="mb-12 lg:hidden"><Brand /></div><div className="mx-auto w-full max-w-[440px]"><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#6e9b79]">stayzen host workspace</p><h2 className="mt-3 text-[36px] font-semibold tracking-[-0.07em] text-[#234d3d]">{title}</h2><p className="mt-3 text-[15px] leading-7 text-[#7a8d80]">{description}</p><div className="mt-8">{children}</div></div></div></div>; }
 function Field({ label, icon: Icon, placeholder, type = "text" }: { label: string; icon: typeof Mail; placeholder: string; type?: string }) { return <label className="grid gap-2 text-xs font-bold text-[#5d7464]"><span>{label}</span><div className="relative"><Icon size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa99f]" /><input type={type} placeholder={placeholder} className="h-12 w-full rounded-xl border border-[#dfe9df] bg-white pl-10 pr-4 text-sm outline-none placeholder:text-[#a6b2a9] focus:border-[#7db487] focus:ring-2 focus:ring-[#dceedd]" /></div></label>; }

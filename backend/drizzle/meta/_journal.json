@@ -8,6 +8,13 @@
       "when": 1788943529258,
       "tag": "0000_ordinary_richard_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1794218300263,
+      "tag": "0001_steep_sabretooth",
+      "breakpoints": true
     }
   ]
 }
