@@ -1,28 +1,28 @@
 /**
  * Development authentication helpers for email/password login
- * Used when OAuth is not configured (local development)
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-export type AuthResult = {
+export interface AuthResult {
   success: boolean;
   error?: string;
-};
+}
 
+/**
+ * Sign up a new user with email and password
+ */
 export async function devSignup(
   email: string,
   password: string,
   name: string
 ): Promise<AuthResult> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/dev-signup`, {
+    const response = await fetch("/api/auth/dev-signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
       body: JSON.stringify({ email, password, name }),
+      credentials: "include",
     });
 
     const data = await response.json();
@@ -30,7 +30,7 @@ export async function devSignup(
     if (!response.ok) {
       return {
         success: false,
-        error: data.error || "Signup failed. Please try again.",
+        error: data.error || "Signup failed",
       };
     }
 
@@ -39,23 +39,26 @@ export async function devSignup(
     console.error("[DevAuth] Signup error:", error);
     return {
       success: false,
-      error: "Network error. Please check your connection.",
+      error: "Network error. Please try again.",
     };
   }
 }
 
+/**
+ * Log in with email and password
+ */
 export async function devLogin(
   email: string,
   password: string
 ): Promise<AuthResult> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/dev-login`, {
+    const response = await fetch("/api/auth/dev-login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
       body: JSON.stringify({ email, password }),
+      credentials: "include",
     });
 
     const data = await response.json();
@@ -63,7 +66,7 @@ export async function devLogin(
     if (!response.ok) {
       return {
         success: false,
-        error: data.error || "Login failed. Please try again.",
+        error: data.error || "Login failed",
       };
     }
 
@@ -72,7 +75,7 @@ export async function devLogin(
     console.error("[DevAuth] Login error:", error);
     return {
       success: false,
-      error: "Network error. Please check your connection.",
+      error: "Network error. Please try again.",
     };
   }
 }
