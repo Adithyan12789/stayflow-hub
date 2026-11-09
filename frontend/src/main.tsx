@@ -18,6 +18,16 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
+  // Temporary: Don't auto-redirect if OAuth is not configured
+  const oauthConfigured = import.meta.env.VITE_OAUTH_PORTAL_URL && 
+                          import.meta.env.VITE_APP_ID && 
+                          import.meta.env.VITE_OAUTH_PORTAL_URL !== 'http://localhost:5001';
+  
+  if (!oauthConfigured) {
+    console.warn('[Auth] OAuth not configured - skipping auto-redirect to login');
+    return;
+  }
+
   startLogin();
 };
 
